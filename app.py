@@ -1,103 +1,84 @@
-#!flask/bin/python
-from flask import Flask
-from flask import jsonify
-from flask import abort
-from flask import make_response
-from flask import request
+html = """
+<H1 align="center">html2fpdf</H1>
+<h2>Basic usage</h2>
+<p>You can now easily print text while mixing different
+styles : <B>bold</B>, <I>italic</I>, <U>underlined</U>, or
+<B><I><U>all at once</U></I></B>!
+ 
+<BR>You can also insert hyperlinks
+like this <A HREF="http://www.mousevspython.com">www.mousevspython.comg</A>,
+or include a hyperlink in an image. Just click on the one below.<br>
+<center>
+<A HREF="http://www.mousevspython.com"><img src="tutorial/logo.png" width="150" height="150"></A>
+</center>
+ 
+<h3>Sample List</h3>
+<ul><li>option 1</li>
+<ol><li>option 2</li></ol>
+<li>option 3</li></ul>
+ 
+<table border="0" align="center" width="50%">
+<thead><tr><th width="30%">Header 1</th><th width="70%">header 2</th></tr></thead>
+<tbody>
+<tr><td>cell 1</td><td>cell 2</td></tr>
+<tr><td>cell 2</td><td>cell 3</td></tr>
+</tbody>
+</table>
+"""
+ 
+from pyfpdf import FPDF, HTMLMixin
+ 
+class MyFPDF(FPDF, HTMLMixin):
+    pass
+ 
+pdf=MyFPDF()
+#First page
+pdf.add_page()
+pdf.write_html(html)
+pdf.output('html.pdf','F')
+
+#another implementation
+
+from xhtml2pdf import pisa
+from StringIO import StringIO
+
+def create_pdf(pdf_data):
+    pdf = StringIO()
+    pisa.CreatePDF(StringIO(pdf_data), pdf)
+    return pdf
+
+import os
+from flask import Flask, request, redirect, url_for
+from werkzeug import secure_filename
+
+UPLOAD_FOLDER = '/tmp/'
+ALLOWED_EXTENSIONS = set(['txt'])
 
 app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-@app.route('/')
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1] in ALLOWED_EXTENSIONS
+
+@app.route("/", methods=['GET', 'POST'])
 def index():
-    return "Hello, World!"
+    if request.method == 'POST':
+        file = request.files['file']
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            return redirect(url_for('index'))
+    return """
+    <!doctype html>
+    <title>Upload new File</title>
+    <h1>Upload new File</h1>
+    <form action="" method=post enctype=multipart/form-data>
+      <p><input type=file name=file>
+         <input type=submit value=Upload>
+    </form>
+    <p>%s</p>
+    """ % "<br>".join(os.listdir(app.config['UPLOAD_FOLDER'],))
 
-users = [
-    {
-        'id': 1,
-        'username': u'rafaelescrich',
-        'email': u'rafaelescrich@gmail.com', 
-        'name': u'Rafael Escrich',
-	'cpf': u'32742438840',
-	'rg': u'274851647',
-	'phone': u'+554899926942',
-
-    },
-    {
-        'id': 2,
-        'username': u'rafaelescrich',
-        'email': u'rafaelescrich@gmail.com', 
-        'name': u'Rafael Escrich',
-	'cpf': u'32742438840',
-	'rg': u'274851647',
-	'phone': u'+554800000000',
-    }
-]
-
-@app.route('/api/v1/users', methods=['GET'])
-def get_users():
-    return jsonify({'users': users})
-
-@app.route('/api/v1/users/<int:user_id>', methods=['GET'])
-def get_user(user_id):
-    user = [user for user in users if user['id'] == user_id]
-    if len(user) == 0:
-        abort(404)
-    return jsonify({'user': user[0]})
-
-@app.route('/api/v1/users', methods=['POST'])
-def create_user():
-    if not request.json or not 'username' in request.json:
-        abort(400)
-    user = {
-        'id': users[-1]['id'] + 1,
-        'username': request.json['username'],
-	'email': request.json['email'],
-	'name': request.json['name'],
-	'cpf': request.json['cpf'],
-	'rg': request.json['rg'],
-	'phone': request.json['phone']
-    }
-    users.append(user)
-    return jsonify({'user': user}), 201
-
-@app.route('/api/v1/users/<int:user_id>', methods=['PUT'])
-def update_user(user_id):
-    user = [user for user in users if user['id'] == user_id]
-    if len(user) == 0:
-        abort(404)
-    if not request.json:
-        abort(400)
-    if 'username' in request.json and type(request.json['username']) != unicode:
-        abort(400)
-    if 'email' in request.json and type(request.json['email']) is not unicode:
-        abort(400)
-    if 'name' in request.json and type(request.json['name']) is not unicode:
-        abort(400)
-    if 'cpf' in request.json and type(request.json['cpf']) is not unicode:
-        abort(400)
-    if 'rg' in request.json and type(request.json['rg']) is not unicode:
-        abort(400)
-    if 'phone' in request.json and type(request.json['phone']) is not unicode:
-        abort(400)
-    user[0]['username'] = request.json.get('username', user[0]['username'])
-    user[0]['email'] = request.json.get('email', user[0]['email'])
-    user[0]['name'] = request.json.get('name', user[0]['name'])
-    user[0]['cpf'] = request.json.get('cpf', user[0]['cpf'])
-    user[0]['rg'] = request.json.get('rg', user[0]['rg'])
-    user[0]['phone'] = request.json.get('phone', user[0]['phone'])
-    return jsonify({'user': user[0]})
-
-@app.route('/api/v1/users/<int:user_id>', methods=['DELETE'])
-def delete_user(user_id):
-    user = [user for user in users if user['id'] == user_id]
-    if len(user) == 0:
-        abort(404)
-    user.remove(user[0])
-    return jsonify({'result': True})
-
-@app.errorhandler(404)
-def not_found(error):
-    return make_response(jsonify({'error': 'Not found'}), 404)
-
-if __name__ == '__main__':
-    app.run(debug=True)
+if __name__ == "__main__":
+app.run(host='0.0.0.0', port=5001, debug=True)
