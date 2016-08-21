@@ -25,60 +25,146 @@ or include a hyperlink in an image. Just click on the one below.<br>
 </tbody>
 </table>
 """
- 
-from pyfpdf import FPDF, HTMLMixin
- 
-class MyFPDF(FPDF, HTMLMixin):
-    pass
- 
-pdf=MyFPDF()
-#First page
-pdf.add_page()
-pdf.write_html(html)
-pdf.output('html.pdf','F')
 
-#another implementation
-
-from xhtml2pdf import pisa
-from StringIO import StringIO
-
-def create_pdf(pdf_data):
-    pdf = StringIO()
-    pisa.CreatePDF(StringIO(pdf_data), pdf)
-    return pdf
-
+#!flask/bin/python
+import PyPDF2
 import os
-from flask import Flask, request, redirect, url_for
-from werkzeug import secure_filename
 
-UPLOAD_FOLDER = '/tmp/'
-ALLOWED_EXTENSIONS = set(['txt'])
+from flask import Flask
+from flask import jsonify
+from flask import send_from_directory
+#from flask import abort
+#from flask import make_response
+from flask import request
+from pyfpdf import FPDF, HTMLMixin
 
-app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app = Flask(__name__)  
 
-def allowed_file(filename):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1] in ALLOWED_EXTENSIONS
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+UPLOAD_FOLDER = '/static/pdfs'
 
-@app.route("/", methods=['GET', 'POST'])
+reports = [
+    {
+        'id': 1,
+        'report_type': u'Relatório Temperatura Umidade',
+        'report_desc': u'Temperatura e Umidade mensal', 
+        'sensor_name': u'sala_atto',
+        'sensor_id': u'432432',
+        'events': [
+            {
+                event: u'XXXXX', 
+                timestamp: u'1471808276'
+            },
+            {
+                event: u'XXXXX', 
+                timestamp: u'1471808332'
+            }
+        ],
+        'url_image': u'http://someurl.com',
+        'measure_min': u'150',
+        'measure_max': u'450'
+    },
+    {
+        'id': 2,
+        'report_type': u'Relatório Temperatura Umidade',
+        'report_desc': u'Temperatura e Umidade mensal', 
+        'sensor_name': u'sala_atto',
+        'sensor_id': u'432432',
+        'events': [
+            {
+                event: u'XXXXX', 
+                timestamp: u'1471808276'
+            },
+            {
+                event: u'XXXXX', 
+                timestamp: u'1471808332'
+            }
+        ],
+        'url_image': u'http://someurl.com',
+        'measure_min': u'150',
+        'measure_max': u'450'
+    }
+]
+
+@app.route('/')
 def index():
-    if request.method == 'POST':
-        file = request.files['file']
-        if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            return redirect(url_for('index'))
-    return """
-    <!doctype html>
-    <title>Upload new File</title>
-    <h1>Upload new File</h1>
-    <form action="" method=post enctype=multipart/form-data>
-      <p><input type=file name=file>
-         <input type=submit value=Upload>
-    </form>
-    <p>%s</p>
-    """ % "<br>".join(os.listdir(app.config['UPLOAD_FOLDER'],))
+    return "API REST Reports Digite no seu navegador: http://127.0.0.1:5000/api/v1/pdfs/2.pdf para retornar o pdf de nome 2.pdf"
 
-if __name__ == "__main__":
-app.run(host='0.0.0.0', port=5001, debug=True)
+
+@app.route('/api/v1/pdfs/<filename>')  
+def send_file(filename):  
+    # if path is None:
+    #     abort(404)
+    # files = os.listdir(path)
+    # if not files:
+    #     abort(404)
+    # return send_from_directory(path, files[0])
+    return send_from_directory(BASE_DIR + UPLOAD_FOLDER, filename)
+
+@app.route('/api/v1/reports', methods=['POST'])
+def prepare_json():
+    if not request.json or not 'report' in request.json:
+        abort(400)
+    user = {
+        'id': users[-1]['id'] + 1,
+        'username': request.json['username'],
+        'email': request.json['email'],
+        'name': request.json['name'],
+        'cpf': request.json['cpf'],
+        'rg': request.json['rg'],
+        'phone': request.json['phone']
+    }
+
+    users.append(user)
+    
+    return jsonify({'user': user}), 201
+
+def create_pdf():
+    response.title = "web2py sample listing"
+
+    # define header and footers:
+    head = THEAD(TR(TH("Header 1", _width="50%"), 
+                    TH("Header 2", _width="30%"),
+                    TH("Header 3", _width="20%"), 
+                    _bgcolor="#A0A0A0"))
+    foot = TFOOT(TR(TH("Footer 1", _width="50%"), 
+                    TH("Footer 2", _width="30%"),
+                    TH("Footer 3", _width="20%"),
+                    _bgcolor="#E0E0E0"))
+
+    # create several rows:
+    rows = []
+    for i in range(1000):
+        col = i % 2 and "#F0F0F0" or "#FFFFFF"
+        rows.append(TR(TD("Row %s" %i),
+                       TD("something", _align="center"),
+                       TD("%s" % i, _align="right"),
+                       _bgcolor=col)) 
+
+    # make the table object
+    body = TBODY(*rows)
+    table = TABLE(*[head, foot, body], 
+                  _border="1", _align="center", _width="100%")
+
+    pdf = MyFPDF()
+    # first page:
+    pdf.add_page()
+    pdf.write_html(str(XML(table, sanitize=False)))
+    response.headers['Content-Type'] = 'application/pdf'
+    return pdf.output(dest='S')
+
+# Cria o pdf padrão de acordo com a biblioteca pyFPDF 
+class MyFPDF(FPDF, HTMLMixin):
+    def header(self):
+        self.set_font('Arial', 'B', 15)
+        self.cell(0, 10, response.title, 1, 0, 'C')
+        self.ln(20)
+
+    def footer(self):
+        self.set_y(-15)
+        self.set_font('Arial', 'I', 8)
+        txt = 'Page %s of %s' % (self.page_no(), self.alias_nb_pages())
+        self.cell(0, 10, txt, 0, 0, 'C')
+
+if __name__ == '__main__':
+    app.run(debug=True)
