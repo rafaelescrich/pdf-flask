@@ -105,7 +105,7 @@ def send_file(filename):
 def prepare_json():
     if not request.json or not 'report' in request.json:
         abort(400)
-    user = {
+    report = {
         'id': users[-1]['id'] + 1,
         'username': request.json['username'],
         'email': request.json['email'],
